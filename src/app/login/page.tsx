@@ -7,7 +7,7 @@ export default function LoginPage() {
   const router = useRouter();
 
   const handleLogin = () => {
-    if (password === '123456') {
+    if (password === '123Mudar') {
       localStorage.setItem('auth', 'true');
       router.push('/dashboard');
     } else {
