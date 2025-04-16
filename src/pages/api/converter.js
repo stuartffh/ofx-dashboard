@@ -84,7 +84,8 @@ export default async function handler(req, res) {
 
         validTxs.push({
           type: tx.TRNTYPE || 'CREDIT',
-          date: formatDate(date),
+          date,
+          dateStr: formatDate(date),
           amount: parseFloat(tx.TRNAMT || '0.00').toFixed(2).replace('.', ','),
           fitid: tx.FITID || `N${i + 1}`,
           memo: (tx.MEMO || 'TRANSACAO').substring(0, 32),
@@ -92,7 +93,71 @@ export default async function handler(req, res) {
         });
       });
 
-      const output = `OFXHEADER:100\nDATA:OFXSGML\nVERSION:102\nSECURITY:NONE\nENCODING:USASCII\nCHARSET:1252\nCOMPRESSION:NONE\nOLDFILEUID:NONE\nNEWFILEUID:NONE\n\n<OFX>\n<SIGNONMSGSRSV1>\n<SONRS>\n<STATUS>\n<CODE>0\n<SEVERITY>INFO\n</STATUS>\n<DTSERVER>00000000000000\n<LANGUAGE>POR\n</SONRS>\n</SIGNONMSGSRSV1>\n<BANKMSGSRSV1>\n<STMTTRNRS>\n<TRNUID>1001\n<STATUS>\n<CODE>0\n<SEVERITY>INFO\n</STATUS>\n<STMTRS>\n<CURDEF>BRL\n<BANKACCTFROM>\n<BANKID>0001\n<ACCTID>123456\n<ACCTTYPE>CHECKING\n</BANKACCTFROM>\n<BANKTRANLIST>\n<DTSTART>${formatDate(new Date())}\n<DTEND>${formatDate(new Date())}\n${validTxs.map(tx => `<STMTTRN>\n<TRNTYPE>${tx.type}\n<DTPOSTED>${tx.date}\n<TRNAMT>${tx.amount}\n<FITID>${tx.fitid}\n<CHECKNUM>${tx.checknum}\n<MEMO>${tx.memo}\n</STMTTRN>`).join('\n')}\n</BANKTRANLIST>\n<LEDGERBAL>\n<BALAMT>0,00\n<DTASOF>00000000\n</LEDGERBAL>\n</STMTRS>\n</STMTTRNRS>\n</BANKMSGSRSV1>\n</OFX>`;
+      const dates = validTxs.map(tx => tx.dateStr);
+      const dtStart = dates.length ? dates.reduce((a, b) => (a < b ? a : b)) : formatDate(new Date());
+      const dtEnd = dates.length ? dates.reduce((a, b) => (a > b ? a : b)) : formatDate(new Date());
+
+      const ofxLines = [
+        'OFXHEADER:100',
+        'DATA:OFXSGML',
+        'VERSION:102',
+        'SECURITY:NONE',
+        'ENCODING:USASCII',
+        'CHARSET:1252',
+        'COMPRESSION:NONE',
+        'OLDFILEUID:NONE',
+        'NEWFILEUID:NONE',
+        '',
+        '<OFX>',
+        '<SIGNONMSGSRSV1>',
+        '<SONRS>',
+        '<STATUS>',
+        '<CODE>0',
+        '<SEVERITY>INFO',
+        '</STATUS>',
+        '<DTSERVER>00000000000000',
+        '<LANGUAGE>POR',
+        '</SONRS>',
+        '</SIGNONMSGSRSV1>',
+        '<BANKMSGSRSV1>',
+        '<STMTTRNRS>',
+        '<TRNUID>1001',
+        '<STATUS>',
+        '<CODE>0',
+        '<SEVERITY>INFO',
+        '</STATUS>',
+        '<STMTRS>',
+        '<CURDEF>BRL',
+        '<BANKACCTFROM>',
+        '<BANKID>0001',
+        '<ACCTID>123456',
+        '<ACCTTYPE>CHECKING',
+        '</BANKACCTFROM>',
+        '<BANKTRANLIST>',
+        `<DTSTART>${dtStart}`,
+        `<DTEND>${dtEnd}`,
+        ...validTxs.map(tx => [
+          '<STMTTRN>',
+          `<TRNTYPE>${tx.type}`,
+          `<DTPOSTED>${tx.dateStr}`,
+          `<TRNAMT>${tx.amount}`,
+          `<FITID>${tx.fitid}`,
+          `<CHECKNUM>${tx.checknum}`,
+          `<MEMO>${tx.memo}`,
+          '</STMTTRN>',
+        ].join('\r\n')),
+        '</BANKTRANLIST>',
+        '<LEDGERBAL>',
+        '<BALAMT>0,00',
+        '<DTASOF>00000000',
+        '</LEDGERBAL>',
+        '</STMTRS>',
+        '</STMTTRNRS>',
+        '</BANKMSGSRSV1>',
+        '</OFX>'
+      ];
+
+      const output = ofxLines.join('\r\n');
 
       res.setHeader('Content-Type', 'application/ofx; charset=latin1');
       res.setHeader('Content-Disposition', 'attachment; filename="versao1.ofx"');
